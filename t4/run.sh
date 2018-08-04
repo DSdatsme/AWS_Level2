@@ -9,12 +9,18 @@ do
 
 	aws events put-rule \
 	--name ${days[i]}-start-rule \
-	--schedule-expression "cron(0 ${starttime} ? * ${days[i]} *)"
+	--schedule-expression "cron(0 ${starttime} ? * ${days[i]} *)" \
+	--region $REGION
 
 	aws events put-rule \
 	--name ${days[i]}-stop-rule \
-	--schedule-expression "cron(0 ${endtime} ? * ${days[i]} *)"
-
+	--schedule-expression "cron(0 ${endtime} ? * ${days[i]} *)" \
+	--region $REGION
 done
 
-bash rule-to-func.sh
+aws events disable-rule \
+--name start-rule \
+--region $REGION
+aws events disable-rule \
+--name stop-rule \
+--region $REGION
