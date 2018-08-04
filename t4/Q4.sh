@@ -75,7 +75,7 @@ aws events put-targets \
 #lambda reset-func
 echo -e "import boto3\na = ['MON', 'TUE', 'WED', 'THUR', 'FRI', 'SAT', 'SUN']\ndef lambda_handler(event, context):\n    client = boto3.client('events')\n    for i in range(0,7):\n        response = client.disable_rule(Name=a[i]+'-start-rule')\n        response = client.disable_rule(Name=a[i]+'-stop-rule')\n    response = client.enable_rule(Name='start-rule' )\n    response = client.enable_rule(Name='stop-rule')\n    return 'Hello from Lambda'" > reset-func.py
 zip tempzip.zip reset-func.py
-temp=$(aws lambda create-function --function-name reset-func \
+resetFunctionArn=$(aws lambda create-function --function-name reset-func \
 --runtime python3.6 \
 --role arn:aws:iam::488599217855:role/FullAccess \
 --handler reset-func.lambda_handler \
@@ -85,9 +85,6 @@ temp=$(aws lambda create-function --function-name reset-func \
 resetFunctionArn=$(aws lambda get-function-configuration --function-name reset-func --region $REGION --query "FunctionArn" --output text)
 echo "Your reset function is created!"
 rm reset-func.py tempzip.zip
-
-
-
 
 #echo 'Creating Events...'
 
@@ -108,22 +105,54 @@ aws lambda add-permission \
 --principal events.amazonaws.com \
 --source-arn $default_stop_rule_arn
 
-
-
-#copied from run.sh
+#fused  run.sh & rule-to-func.sh
 days=( [0]="MON" [1]="TUE" [2]="WED" [3]="THUR" [4]="FRI" [5]="SAT" [6]="SUN")
+starttime=0
+endtime=1
 for ((i=0;i<7;i++))
 do
-	echo 'Enter Start Time..'
-	read starttime
-	echo 'Enter End Time'
-	read endtime
-
-	aws events put-rule \
+#setting up start rules for each days.....
+	tempArn=$(aws events put-rule \
+		--name ${days[i]}-start-rule \
+		--region $REGION \
+		--schedule-expression "cron(0 ${starttime} ? * ${days[i]} *)" \
+		--query 'RuleArn' \
+		--output text)
+	aws events put-targets \
+	--rule ${days[i]}-start-rule \
+	--targets file://target-start.json \
+	--region $REGION
+	aws lambda add-permission \
+	--function-name start-func \
+	--statement-id ${days[i]}-start-event \
+	--region $REGION \
+	--action 'lambda:InvokeFunction' \
+	--principal events.amazonaws.com \
+	--source-arn $tempArn
+	aws events disable-rule \
 	--name ${days[i]}-start-rule \
-	--schedule-expression "cron(0 ${starttime} ? * ${days[i]} *)"
+	--region $REGION
 
-	aws events put-rule \
+
+#setting up stop rules for each days.....
+	tempArn=$(aws events put-rule \
 	--name ${days[i]}-stop-rule \
-	--schedule-expression "cron(0 ${endtime} ? * ${days[i]} *)"
+	--region $REGION \
+	--schedule-expression "cron(0 ${endtime} ? * ${days[i]} *)" \
+	--query 'RuleArn' \
+	--output text)
+	aws events put-targets \
+	--rule ${days[i]}-stop-rule \
+	--targets file://target-stop.json \
+	--region $REGION
+	aws lambda add-permission \
+	--function-name stop-func \
+	--statement-id ${days[i]}-stop-event \
+	--region $REGION \
+   --action 'lambda:InvokeFunction' \
+	--principal events.amazonaws.com \
+	--source-arn $tempArn
+	aws events disable-rule \
+	--name ${days[i]}-stop-rule \
+	--region $REGION
 done
