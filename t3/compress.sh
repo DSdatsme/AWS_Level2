@@ -7,10 +7,10 @@ read myBucket
 echo "Enter function name"
 read myLambda
 echo "Creating bucket....."
-aws s3 mb s3://${myBucket} \
---region $REGION
+aws s3 mb s3://${myBucket} --region $REGION
 
-echo "Creating lambda function....."
+#lambda function with max timeout and fetching code directly from s3 bucket
+echo "Getting your lambda function ready....."
 aws lambda create-function --function-name $myLambda \
 --runtime python3.7 \
 --role arn:aws:iam::488599217855:role/FullAccess \
@@ -29,6 +29,7 @@ aws lambda add-permission \
 --principal s3.amazonaws.com \
 --source-arn arn:aws:s3:::$myBucket
 
+#extracting arn so that it can be added to config file
 arn=$(aws lambda get-function-configuration \
 --function-name $myLambda \
 --region $REGION \
@@ -50,8 +51,5 @@ aws s3api put-bucket-notification-configuration \
 --bucket $myBucket \
 --notification-configuration file://config.json
 
-
 rm config.json
-
 echo "Your Image resizer is ready!"
-
